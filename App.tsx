@@ -1,9 +1,15 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { analyzeImage, analyzeTextAndStartChat, continueChat, generateFilenameFromText } from './services/geminiService';
 import type { Chat } from '@google/genai';
 import Spinner from './components/Spinner';
 
 const App: React.FC = () => {
+  // --- API Key States ---
+  const [apiKeyInput, setApiKeyInput] = useState<string>('');
+  const [activeApiKey, setActiveApiKey] = useState<string>('');
+  const [apiKeyMessage, setApiKeyMessage] = useState<{ text: string, type: 'success' | 'error' | 'info' } | null>(null);
+
+  // --- Main App States ---
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [analysisResult, setAnalysisResult] = useState<string>('');
@@ -20,6 +26,53 @@ const App: React.FC = () => {
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [textModel, setTextModel] = useState<string>('gemini-3-flash-preview');
 
+  // Load API Key from LocalStorage on mount
+  useEffect(() => {
+    const savedKey = localStorage.getItem('google_ai_studio_api_key');
+    if (savedKey) {
+      setApiKeyInput(savedKey);
+      setActiveApiKey(savedKey);
+    } else {
+      setApiKeyInput('no API key');
+    }
+  }, []);
+
+  // --- API Key Handlers ---
+  const handleApiKeyFocus = () => {
+    if (apiKeyInput === 'no API key') {
+      setApiKeyInput('');
+    }
+  };
+
+  const handleSendApiKey = () => {
+    if (!apiKeyInput || apiKeyInput === 'no API key') {
+      setApiKeyMessage({ text: 'กรุณากรอก API Key ก่อนส่ง', type: 'error' });
+      setTimeout(() => setApiKeyMessage(null), 3000);
+      return;
+    }
+    localStorage.setItem('google_ai_studio_api_key', apiKeyInput);
+    setActiveApiKey(apiKeyInput);
+    setApiKeyMessage({ text: 'บันทึก API Key ลงระบบและ LocalStorage เรียบร้อย', type: 'success' });
+    setTimeout(() => setApiKeyMessage(null), 3000);
+  };
+
+  const handleCopyApiKey = () => {
+    if (apiKeyInput && apiKeyInput !== 'no API key') {
+      navigator.clipboard.writeText(apiKeyInput);
+      setApiKeyMessage({ text: 'คัดลอก API Key แล้ว', type: 'info' });
+      setTimeout(() => setApiKeyMessage(null), 3000);
+    }
+  };
+
+  const handleClearApiKey = () => {
+    localStorage.removeItem('google_ai_studio_api_key');
+    setApiKeyInput(''); // Set to empty so user can type
+    setActiveApiKey('');
+    setApiKeyMessage({ text: 'ล้างข้อมูล API Key เรียบร้อยแล้ว', type: 'info' });
+    setTimeout(() => setApiKeyMessage(null), 3000);
+  };
+
+  // --- App Handlers ---
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
@@ -52,13 +105,16 @@ const App: React.FC = () => {
         };
         reader.readAsText(file, 'UTF-8');
     }
-    // Reset the file input so the onChange event fires again for the same file.
     if (event.target) {
         event.target.value = '';
     }
   };
 
   const handleAnalyzeClick = useCallback(async () => {
+    if (!activeApiKey) {
+      setError('กรุณาตั้งค่า API Key ด้านบนก่อนเริ่มใช้งาน');
+      return;
+    }
     if (!imageFile) {
       setError('กรุณาเลือกไฟล์รูปภาพก่อน');
       return;
@@ -72,7 +128,7 @@ const App: React.FC = () => {
     setExpertError(null);
 
     try {
-      const result = await analyzeImage(imageFile, textModel);
+      const result = await analyzeImage(imageFile, activeApiKey, textModel);
       setAnalysisResult(prev => {
         if (!prev) {
           return result;
@@ -98,7 +154,7 @@ const App: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [imageFile]);
+  }, [imageFile, activeApiKey, textModel]);
 
   const triggerFileSelect = () => {
     fileInputRef.current?.click();
@@ -128,13 +184,17 @@ const App: React.FC = () => {
   };
 
   const handleSaveToFile = async () => {
+    if (!activeApiKey) {
+      setError('กรุณาตั้งค่า API Key ด้านบนก่อนเริ่มใช้งาน');
+      return;
+    }
     if (!analysisResult || isSaving) return;
     
     setIsSaving(true);
     setError(null);
 
     try {
-        const suggestedName = await generateFilenameFromText(analysisResult, textModel);
+        const suggestedName = await generateFilenameFromText(analysisResult, activeApiKey, textModel);
 
         const now = new Date();
         const date = now.toISOString().split('T')[0]; // YYYY-MM-DD
@@ -155,7 +215,7 @@ const App: React.FC = () => {
 
     } catch (err: any) {
         setError(err.message || "เกิดข้อผิดพลาดในการสร้างชื่อไฟล์");
-        // Fallback to original save logic on error
+        // Fallback
         const blob = new Blob([analysisResult], { type: 'text/plain;charset=utf-8' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
@@ -171,6 +231,10 @@ const App: React.FC = () => {
   };
 
   const handleAnalyzeTextClick = async () => {
+    if (!activeApiKey) {
+      setExpertError('กรุณาตั้งค่า API Key ด้านบนก่อนเริ่มใช้งาน');
+      return;
+    }
     if (!analysisResult || isLoading) return;
 
     setIsAnalyzingText(true);
@@ -179,7 +243,7 @@ const App: React.FC = () => {
     setExpertAnalysis('');
 
     try {
-        const { chat, initialResponse } = await analyzeTextAndStartChat(analysisResult, textModel);
+        const { chat, initialResponse } = await analyzeTextAndStartChat(analysisResult, activeApiKey, textModel);
         setChatSession(chat);
         setExpertAnalysis(initialResponse);
     } catch (err: any) {
@@ -210,10 +274,56 @@ const App: React.FC = () => {
       }
   };
 
-
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100 flex flex-col items-center p-4 sm:p-6 md:p-8">
       <div className="w-full max-w-4xl mx-auto">
+        
+        {/* --- API Key Configuration Section --- */}
+        <div className="bg-gray-800 p-4 rounded-lg shadow-md border border-gray-700 mb-8">
+          <label htmlFor="api-key-input" className="block text-sm font-medium text-gray-300 mb-2">
+            Google AI Studio API Key
+          </label>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input
+              id="api-key-input"
+              type="text"
+              value={apiKeyInput}
+              onFocus={handleApiKeyFocus}
+              onChange={(e) => setApiKeyInput(e.target.value)}
+              placeholder="Paste your API Key here..."
+              className="flex-grow p-2.5 bg-gray-900 border border-gray-600 rounded-lg text-gray-200 font-mono text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors"
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={handleSendApiKey}
+                className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50"
+              >
+                Send
+              </button>
+              <button
+                onClick={handleCopyApiKey}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
+              >
+                Copy
+              </button>
+              <button
+                onClick={handleClearApiKey}
+                className="bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+          {apiKeyMessage && (
+            <p className={`mt-2 text-sm ${
+              apiKeyMessage.type === 'success' ? 'text-green-400' :
+              apiKeyMessage.type === 'error' ? 'text-red-400' : 'text-blue-400'
+            }`}>
+              {apiKeyMessage.text}
+            </p>
+          )}
+        </div>
+
         <header className="text-center mb-8">
           <h1 className="text-4xl sm:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-600">
             Image Text Extract & Analyze
@@ -230,15 +340,15 @@ const App: React.FC = () => {
               onChange={(e) => setTextModel(e.target.value)}
               className="w-full bg-gray-800 border border-gray-700 text-gray-200 text-sm rounded-lg focus:ring-purple-500 focus:border-purple-500 block p-2.5 transition-colors"
             >
-<option value="gemini-3-flash-preview">Gemini 3 Flash Preview</option>
-<option value="gemini-3.1-pro-preview">Gemini 3.1 Pro Preview</option>
-<option value="gemini-3-pro-preview">Gemini 3.0 Pro Preview</option>
-<option value="gemini-3.1-flash-lite-preview">Gemini 3.1 Flash Lite Preview</option>
-<option value="gemini-flash-latest">Gemini Flash Latest</option>
-<option value="gemini-flash-lite-latest">Gemini Flash Lite Latest</option>
-<option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
-<option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
-<option value="gemini-pro-latest">Gemini Pro (Latest Stable)</option>
+              <option value="gemini-3-flash-preview">Gemini 3 Flash Preview</option>
+              <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro Preview</option>
+              <option value="gemini-3-pro-preview">Gemini 3.0 Pro Preview</option>
+              <option value="gemini-3.1-flash-lite-preview">Gemini 3.1 Flash Lite Preview</option>
+              <option value="gemini-flash-latest">Gemini Flash Latest</option>
+              <option value="gemini-flash-lite-latest">Gemini Flash Lite Latest</option>
+              <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+              <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+              <option value="gemini-pro-latest">Gemini Pro (Latest Stable)</option>
             </select>
           </div>
         </header>

@@ -11,7 +11,6 @@ const fileToGenerativePart = async (file: File) => {
     };
     reader.readAsDataURL(file);
   });
-
   const base64EncodedData = await base64EncodedDataPromise;
   return {
     inlineData: {
@@ -21,12 +20,12 @@ const fileToGenerativePart = async (file: File) => {
   };
 };
 
-export const analyzeImage = async (imageFile: File, model: string = 'gemini-2.5-flash'): Promise<string> => {
-    if (!process.env.API_KEY) {
-        throw new Error("API_KEY environment variable is not set.");
+export const analyzeImage = async (imageFile: File, apiKey: string, model: string = 'gemini-2.5-flash'): Promise<string> => {
+    if (!apiKey) {
+        throw new Error("API Key is missing. Please provide a valid API key.");
     }
 
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({ apiKey: apiKey });
     const imagePart = await fileToGenerativePart(imageFile);
     const textPart = {
         text: "วิเคราะห์ภาพนี้และดึงข้อความและตัวเลขทั้งหมดที่มองเห็นออกมา นำเสนอข้อมูลที่ดึงออกมาอย่างชัดเจนและถูกต้อง"
@@ -37,7 +36,6 @@ export const analyzeImage = async (imageFile: File, model: string = 'gemini-2.5-
             model: model,
             contents: { parts: [imagePart, textPart] },
         });
-
         return response.text;
     } catch (error) {
         console.error("Error analyzing image with Gemini:", error);
@@ -48,18 +46,18 @@ export const analyzeImage = async (imageFile: File, model: string = 'gemini-2.5-
     }
 };
 
-export const analyzeTextAndStartChat = async (text: string, model: string = 'gemini-2.5-pro'): Promise<{ chat: Chat, initialResponse: string }> => {
-  if (!process.env.API_KEY) {
-    throw new Error("API_KEY environment variable is not set.");
+export const analyzeTextAndStartChat = async (text: string, apiKey: string, model: string = 'gemini-2.5-pro'): Promise<{ chat: Chat, initialResponse: string }> => {
+  if (!apiKey) {
+    throw new Error("API Key is missing. Please provide a valid API key.");
   }
 
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI({ apiKey: apiKey });
   const chat = ai.chats.create({
     model: model,
   });
 
   const prompt = `สวมบทบาทเป็นผู้เชี่ยวชาญในด้านที่เกี่ยวข้องกับข้อความต่อไปนี้: "${text}". วิเคราะห์ข้อมูลในข้อความทั้งหมด แล้วแสดงผลการวิเคราะห์อย่างละเอียดพร้อมคำแนะนำเพิ่มเติม`;
-
+  
   try {
     const response = await chat.sendMessage({ message: prompt });
     return { chat, initialResponse: response.text };
@@ -85,13 +83,12 @@ export const continueChat = async (chat: Chat, message: string): Promise<string>
   }
 };
 
-export const generateFilenameFromText = async (textContent: string, model: string = 'gemini-2.5-flash'): Promise<string> => {
-    if (!process.env.API_KEY) {
-        throw new Error("API_KEY environment variable is not set.");
+export const generateFilenameFromText = async (textContent: string, apiKey: string, model: string = 'gemini-2.5-flash'): Promise<string> => {
+    if (!apiKey) {
+        throw new Error("API Key is missing. Please provide a valid API key.");
     }
 
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
+    const ai = new GoogleGenAI({ apiKey: apiKey });
     const prompt = `จากข้อความต่อไปนี้ ให้สร้างชื่อไฟล์ที่สั้น กระชับ และสื่อความหมาย (ไม่เกิน 5 คำ) สำหรับบันทึกเป็นไฟล์ .txt: "${textContent.substring(0, 500)}..."
     
     กฎการตั้งชื่อไฟล์:
