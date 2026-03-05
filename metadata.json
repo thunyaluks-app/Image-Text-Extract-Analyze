@@ -1,0 +1,5 @@
+{
+  "name": "Image Text Extract & Analyze",
+  "description": "An application that allows users to upload a photo, which is then analyzed by the Gemini AI model to extract and display any text and numbers found within the image.",
+  "requestFramePermissions": []
+}
