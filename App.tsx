@@ -18,6 +18,7 @@ const App: React.FC = () => {
   const [chatSession, setChatSession] = useState<Chat | null>(null);
   const [expertError, setExpertError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [textModel, setTextModel] = useState<string>('gemini-3-flash-preview');
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -71,7 +72,7 @@ const App: React.FC = () => {
     setExpertError(null);
 
     try {
-      const result = await analyzeImage(imageFile);
+      const result = await analyzeImage(imageFile, textModel);
       setAnalysisResult(prev => {
         if (!prev) {
           return result;
@@ -133,7 +134,7 @@ const App: React.FC = () => {
     setError(null);
 
     try {
-        const suggestedName = await generateFilenameFromText(analysisResult);
+        const suggestedName = await generateFilenameFromText(analysisResult, textModel);
 
         const now = new Date();
         const date = now.toISOString().split('T')[0]; // YYYY-MM-DD
@@ -178,7 +179,7 @@ const App: React.FC = () => {
     setExpertAnalysis('');
 
     try {
-        const { chat, initialResponse } = await analyzeTextAndStartChat(analysisResult);
+        const { chat, initialResponse } = await analyzeTextAndStartChat(analysisResult, textModel);
         setChatSession(chat);
         setExpertAnalysis(initialResponse);
     } catch (err: any) {
@@ -215,9 +216,31 @@ const App: React.FC = () => {
       <div className="w-full max-w-4xl mx-auto">
         <header className="text-center mb-8">
           <h1 className="text-4xl sm:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-600">
-            Gemini Image Analyzer
+            Image Text Extract & Analyze
           </h1>
           <p className="text-gray-400 mt-2">อัปโหลดภาพเพื่อให้ AI วิเคราะห์และดึงข้อความออกมา</p>
+          <p className="text-sm font-bold text-gray-500 mt-2 tracking-widest">thunyaluks</p>
+          <div className="mt-6 max-w-xs mx-auto">
+            <label htmlFor="model-select" className="block text-sm font-medium text-gray-400 mb-1">
+              Text Reasoning Model
+            </label>
+            <select
+              id="model-select"
+              value={textModel}
+              onChange={(e) => setTextModel(e.target.value)}
+              className="w-full bg-gray-800 border border-gray-700 text-gray-200 text-sm rounded-lg focus:ring-purple-500 focus:border-purple-500 block p-2.5 transition-colors"
+            >
+<option value="gemini-3-flash-preview">Gemini 3 Flash Preview</option>
+<option value="gemini-3.1-pro-preview">Gemini 3.1 Pro Preview</option>
+<option value="gemini-3-pro-preview">Gemini 3.0 Pro Preview</option>
+<option value="gemini-3.1-flash-lite-preview">Gemini 3.1 Flash Lite Preview</option>
+<option value="gemini-flash-latest">Gemini Flash Latest</option>
+<option value="gemini-flash-lite-latest">Gemini Flash Lite Latest</option>
+<option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+<option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+<option value="gemini-pro-latest">Gemini Pro (Latest Stable)</option>
+            </select>
+          </div>
         </header>
 
         <main className="space-y-6">

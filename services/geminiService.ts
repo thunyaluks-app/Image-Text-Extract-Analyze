@@ -21,7 +21,7 @@ const fileToGenerativePart = async (file: File) => {
   };
 };
 
-export const analyzeImage = async (imageFile: File): Promise<string> => {
+export const analyzeImage = async (imageFile: File, model: string = 'gemini-2.5-flash'): Promise<string> => {
     if (!process.env.API_KEY) {
         throw new Error("API_KEY environment variable is not set.");
     }
@@ -34,7 +34,7 @@ export const analyzeImage = async (imageFile: File): Promise<string> => {
 
     try {
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: model,
             contents: { parts: [imagePart, textPart] },
         });
 
@@ -48,14 +48,14 @@ export const analyzeImage = async (imageFile: File): Promise<string> => {
     }
 };
 
-export const analyzeTextAndStartChat = async (text: string): Promise<{ chat: Chat, initialResponse: string }> => {
+export const analyzeTextAndStartChat = async (text: string, model: string = 'gemini-2.5-pro'): Promise<{ chat: Chat, initialResponse: string }> => {
   if (!process.env.API_KEY) {
     throw new Error("API_KEY environment variable is not set.");
   }
 
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const chat = ai.chats.create({
-    model: 'gemini-2.5-pro',
+    model: model,
   });
 
   const prompt = `สวมบทบาทเป็นผู้เชี่ยวชาญในด้านที่เกี่ยวข้องกับข้อความต่อไปนี้: "${text}". วิเคราะห์ข้อมูลในข้อความทั้งหมด แล้วแสดงผลการวิเคราะห์อย่างละเอียดพร้อมคำแนะนำเพิ่มเติม`;
@@ -85,7 +85,7 @@ export const continueChat = async (chat: Chat, message: string): Promise<string>
   }
 };
 
-export const generateFilenameFromText = async (textContent: string): Promise<string> => {
+export const generateFilenameFromText = async (textContent: string, model: string = 'gemini-2.5-flash'): Promise<string> => {
     if (!process.env.API_KEY) {
         throw new Error("API_KEY environment variable is not set.");
     }
@@ -103,7 +103,7 @@ export const generateFilenameFromText = async (textContent: string): Promise<str
 
     try {
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: model,
             contents: prompt,
         });
         
