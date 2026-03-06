@@ -329,7 +329,7 @@ const App: React.FC = () => {
             Image Text Extract & Analyze
           </h1>
           <p className="text-gray-400 mt-2">อัปโหลดภาพเพื่อให้ AI วิเคราะห์และดึงข้อความออกมา</p>
-          <p className="text-sm font-bold text-gray-500 mt-2 tracking-widest">thunyaluks</p>
+          <p className="text-sm font-bold text-gray-500 mt-2 tracking-widest">ts</p>
           <div className="mt-6 max-w-xs mx-auto">
             <label htmlFor="model-select" className="block text-sm font-medium text-gray-400 mb-1">
               Text Reasoning Model
