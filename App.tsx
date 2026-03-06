@@ -26,6 +26,13 @@ const App: React.FC = () => {
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [textModel, setTextModel] = useState<string>('gemini-3-flash-preview');
 
+  // --- Expert Analysis Toolbar States & Refs ---
+  const [referenceImage, setReferenceImage] = useState<File | null>(null);
+  const [referenceImageUrl, setReferenceImageUrl] = useState<string | null>(null);
+  const expertTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const expertTextFileInputRef = useRef<HTMLInputElement>(null);
+  const referenceImageInputRef = useRef<HTMLInputElement>(null);
+
   // Load API Key from LocalStorage on mount
   useEffect(() => {
     const savedKey = localStorage.getItem('google_ai_studio_api_key');
@@ -70,6 +77,81 @@ const App: React.FC = () => {
     setActiveApiKey('');
     setApiKeyMessage({ text: 'ล้างข้อมูล API Key เรียบร้อยแล้ว', type: 'info' });
     setTimeout(() => setApiKeyMessage(null), 3000);
+  };
+
+  // --- Expert Analysis Toolbar Handlers ---
+  const handleExpertTextFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const text = e.target?.result as string;
+        const textarea = expertTextareaRef.current;
+        if (textarea) {
+          const start = textarea.selectionStart;
+          const end = textarea.selectionEnd;
+          const currentText = expertAnalysis;
+          const newText = currentText.substring(0, start) + text + currentText.substring(end);
+          setExpertAnalysis(newText);
+          
+          // Focus back and set cursor position after state update
+          setTimeout(() => {
+            textarea.focus();
+            textarea.setSelectionRange(start + text.length, start + text.length);
+          }, 0);
+        } else {
+          setExpertAnalysis(prev => prev ? `${prev}\n\n${text}` : text);
+        }
+      };
+      reader.readAsText(file, 'UTF-8');
+    }
+    if (event.target) event.target.value = '';
+  };
+
+  const handleSaveExpertToFile = async () => {
+    if (!expertAnalysis) return;
+    try {
+      const suggestedName = await generateFilenameFromText(expertAnalysis.substring(0, 100), activeApiKey, textModel);
+      const blob = new Blob([expertAnalysis], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${suggestedName}_analysis.txt`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleCopyExpertToClipboard = () => {
+    if (expertAnalysis) {
+      navigator.clipboard.writeText(expertAnalysis);
+      setApiKeyMessage({ text: 'คัดลอกข้อความวิเคราะห์แล้ว', type: 'info' });
+      setTimeout(() => setApiKeyMessage(null), 3000);
+    }
+  };
+
+  const handleClearExpertAnalysis = () => {
+    setExpertAnalysis('');
+  };
+
+  const handleReferenceImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      if (referenceImageUrl) URL.revokeObjectURL(referenceImageUrl);
+      setReferenceImage(file);
+      setReferenceImageUrl(URL.createObjectURL(file));
+    }
+  };
+
+  const handleClearReferenceImage = () => {
+    if (referenceImageUrl) URL.revokeObjectURL(referenceImageUrl);
+    setReferenceImage(null);
+    setReferenceImageUrl(null);
+    if (referenceImageInputRef.current) referenceImageInputRef.current.value = '';
   };
 
   // --- App Handlers ---
@@ -264,8 +346,10 @@ const App: React.FC = () => {
       setExpertError(null);
 
       try {
-          const response = await continueChat(chatSession, userMessage);
+          const response = await continueChat(chatSession, userMessage, referenceImage);
           setExpertAnalysis(prev => `${prev}\n\n**AI:**\n${response}`);
+          // Clear reference image after sending
+          handleClearReferenceImage();
       } catch (err: any) {
           setExpertError(err.message || 'เกิดข้อผิดพลาดในการตอบกลับ');
           setExpertAnalysis(prev => `${prev}\n\n*เกิดข้อผิดพลาด โปรดลองอีกครั้ง*`);
@@ -485,11 +569,47 @@ const App: React.FC = () => {
           {chatSession && (
             <div className="w-full mt-6 space-y-4">
               <div>
-                <label htmlFor="expert-results" className="block text-lg font-medium text-gray-300 mb-2">
-                  ผลการวิเคราะห์โดยผู้เชี่ยวชาญ:
-                </label>
+                <div className="flex justify-between items-center mb-2 flex-wrap gap-2">
+                  <label htmlFor="expert-results" className="block text-lg font-medium text-gray-300">
+                    ผลการวิเคราะห์โดยผู้เชี่ยวชาญ:
+                  </label>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <input
+                      type="file"
+                      accept=".txt"
+                      onChange={handleExpertTextFileChange}
+                      ref={expertTextFileInputRef}
+                      className="hidden"
+                    />
+                    <button
+                      onClick={() => expertTextFileInputRef.current?.click()}
+                      className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-1 px-2 rounded transition-colors"
+                    >
+                      Open .txt
+                    </button>
+                    <button
+                      onClick={handleSaveExpertToFile}
+                      className="text-xs bg-blue-600 hover:bg-blue-700 text-white font-semibold py-1 px-2 rounded transition-colors"
+                    >
+                      Save .txt
+                    </button>
+                    <button
+                      onClick={handleCopyExpertToClipboard}
+                      className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-1 px-2 rounded transition-colors"
+                    >
+                      Copy
+                    </button>
+                    <button
+                      onClick={handleClearExpertAnalysis}
+                      className="text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 font-semibold py-1 px-2 rounded transition-colors"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
                 <textarea
                   id="expert-results"
+                  ref={expertTextareaRef}
                   readOnly
                   value={expertAnalysis}
                   placeholder="ผลการวิเคราะห์จะแสดงที่นี่..."
@@ -499,9 +619,48 @@ const App: React.FC = () => {
               </div>
           
               <form onSubmit={handleChatSubmit}>
-                <label htmlFor="chat-input" className="block text-lg font-medium text-gray-300 mb-2">
-                  สอบถามเพิ่มเติม:
-                </label>
+                <div className="flex justify-between items-center mb-2">
+                  <label htmlFor="chat-input" className="block text-lg font-medium text-gray-300">
+                    สอบถามเพิ่มเติม:
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleReferenceImageChange}
+                      ref={referenceImageInputRef}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => referenceImageInputRef.current?.click()}
+                      className="text-xs bg-pink-600 hover:bg-pink-700 text-white font-semibold py-1 px-2 rounded transition-colors flex items-center gap-1"
+                    >
+                      {referenceImage ? 'เปลี่ยนรูปอ้างอิง' : 'แนบรูปอ้างอิง'}
+                    </button>
+                    {referenceImage && (
+                      <button
+                        type="button"
+                        onClick={handleClearReferenceImage}
+                        className="text-xs bg-gray-600 hover:bg-gray-500 text-white font-semibold py-1 px-2 rounded transition-colors"
+                      >
+                        ลบรูป
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {referenceImageUrl && (
+                  <div className="mb-4 relative inline-block">
+                    <img 
+                      src={referenceImageUrl} 
+                      alt="Reference" 
+                      className="h-24 w-auto rounded border border-gray-600 shadow-sm"
+                    />
+                    <div className="absolute -top-2 -right-2 bg-purple-600 text-[10px] px-1 rounded font-bold">REF</div>
+                  </div>
+                )}
+
                 <textarea
                   id="chat-input"
                   value={chatInput}

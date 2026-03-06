@@ -80,9 +80,16 @@ export const analyzeTextAndStartChat = async (text: string, apiKey: string, mode
   }
 };
 
-export const continueChat = async (chat: Chat, message: string): Promise<string> => {
+export const continueChat = async (chat: Chat, message: string, imageFile: File | null = null): Promise<string> => {
   try {
-    const response = await chat.sendMessage({ message });
+    const promptParts: any[] = [{ text: message }];
+    
+    if (imageFile) {
+      const imagePart = await fileToGenerativePart(imageFile);
+      promptParts.push(imagePart);
+    }
+
+    const response = await chat.sendMessage({ message: promptParts });
     return response.text;
   } catch (error) {
     console.error("Error continuing chat:", error);
