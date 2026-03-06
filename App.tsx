@@ -243,7 +243,7 @@ const App: React.FC = () => {
     setExpertAnalysis('');
 
     try {
-        const { chat, initialResponse } = await analyzeTextAndStartChat(analysisResult, activeApiKey, textModel);
+        const { chat, initialResponse } = await analyzeTextAndStartChat(analysisResult, activeApiKey, textModel, imageFile);
         setChatSession(chat);
         setExpertAnalysis(initialResponse);
     } catch (err: any) {

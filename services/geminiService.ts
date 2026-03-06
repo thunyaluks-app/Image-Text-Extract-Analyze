@@ -46,7 +46,7 @@ export const analyzeImage = async (imageFile: File, apiKey: string, model: strin
     }
 };
 
-export const analyzeTextAndStartChat = async (text: string, apiKey: string, model: string = 'gemini-2.5-pro'): Promise<{ chat: Chat, initialResponse: string }> => {
+export const analyzeTextAndStartChat = async (text: string, apiKey: string, model: string = 'gemini-2.5-pro', imageFile: File | null = null): Promise<{ chat: Chat, initialResponse: string }> => {
   if (!apiKey) {
     throw new Error("API Key is missing. Please provide a valid API key.");
   }
@@ -54,12 +54,22 @@ export const analyzeTextAndStartChat = async (text: string, apiKey: string, mode
   const ai = new GoogleGenAI({ apiKey: apiKey });
   const chat = ai.chats.create({
     model: model,
+    config: {
+      systemInstruction: "คุณคือผู้เชี่ยวชาญด้านการวิเคราะห์ข้อมูลและรูปภาพ คุณจะได้รับข้อมูลที่ดึงมาจากรูปภาพ และตัวรูปภาพเอง (ถ้ามี) หน้าที่ของคุณคือวิเคราะห์ข้อมูลเหล่านี้อย่างละเอียด ตอบคำถามของผู้ใช้อย่างแม่นยำโดยอ้างอิงจากทั้งข้อความและรูปภาพที่เห็น",
+    }
   });
 
-  const prompt = `สวมบทบาทเป็นผู้เชี่ยวชาญในด้านที่เกี่ยวข้องกับข้อความต่อไปนี้: "${text}". วิเคราะห์ข้อมูลในข้อความทั้งหมด แล้วแสดงผลการวิเคราะห์อย่างละเอียดพร้อมคำแนะนำเพิ่มเติม`;
-  
+  const promptParts: any[] = [
+    { text: `นี่คือข้อมูลที่ดึงมาจากรูปภาพ:\n\n${text}\n\nกรุณาวิเคราะห์ข้อมูลนี้และรูปภาพที่แนบมา (ถ้ามี) เพื่อให้คำแนะนำเบื้องต้นแก่ผู้ใช้` }
+  ];
+
+  if (imageFile) {
+    const imagePart = await fileToGenerativePart(imageFile);
+    promptParts.push(imagePart);
+  }
+
   try {
-    const response = await chat.sendMessage({ message: prompt });
+    const response = await chat.sendMessage({ message: promptParts });
     return { chat, initialResponse: response.text };
   } catch (error) {
     console.error("Error starting chat and analyzing text:", error);
